@@ -1,32 +1,31 @@
 # -*- coding: utf-8 -*-
 """
-RIA BOT - 24x7 WALA VERSION (Render par chalega)
-=================================================
-Laptop band ho jaye to bhi bot chalti rahegi, kyunki ye
-tumhare laptop par nahi, Render ke server par chalegi.
+RIA BOT - 24x7 VERSION v2 (FIXED)
+=================================
+v2 me kya badla:
+- Bot ab threaded=False hai: message aate hi handler usi time chalega,
+  pehle jaise thread me atka nahi rahega.
+- Webhook wala hissa seedha aur mazboot kiya: content-type ki
+  nazuk shart hatayi, har message par Logs me saaf print hoga
+  "WEBHOOK: message aaya" aur "HANDLER: ... chala", taaki dikkat
+  turant dikh jaye.
+- Koi bhi error hoga to wo Logs me poora print hoga, chhupega nahi.
 
-Token code me NAHI likhna hai.
-Token Render ki website par "Environment Variable" me dalega:
-    Name:  BOT_TOKEN
-    Value: BotFather se mila token
-
-Optional smart AI ke liye wahi ek aur variable:
-    Name:  OPENROUTER_API_KEY
-    Value: openrouter.ai se mili free key (na ho to mat dalo)
+Token code me NAHI hai. Render ke Environment Variable BOT_TOKEN
+se aata hai, pehle jaise hi. Token badalne ki zarurat nahi hai.
 """
 
+import io
 import os
 import random
 import re
 import time
+import traceback
 
 import requests
 import telebot
 from flask import Flask, request
-
-# ============================================================
-#  TOKEN - Render se milega
-# ============================================================
+from gtts import gTTS
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
@@ -34,21 +33,27 @@ RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "").strip()
 
 app = Flask(__name__)
 
+
+def log(*args):
+    print(*args, flush=True)
+
+
 if not BOT_TOKEN or ":" not in BOT_TOKEN:
-    print("WARNING: BOT_TOKEN nahi mila. Render me Environment Variable dalo.")
+    log("WARNING: BOT_TOKEN nahi mila. Render > Environment me BOT_TOKEN dalo.")
 
     @app.route("/")
     def home_no_token():
         return "Ria Bot: BOT_TOKEN set nahi hai. Render > Environment me BOT_TOKEN dalo.", 200
 
 else:
-    bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML")
+    # threaded=False = handler turant, usi request me chalega
+    bot = telebot.TeleBot(BOT_TOKEN, parse_mode="HTML", threaded=False)
     BOT_USERNAME = ""
     try:
         BOT_USERNAME = bot.get_me().username.lower()
-        print(f"Ria Bot Live: @{BOT_USERNAME}")
+        log(f"Ria Bot Live: @{BOT_USERNAME}")
     except Exception as e:
-        print("get_me fail (token check karo):", e)
+        log("get_me fail (token check karo):", e)
 
     # ========================================================
     #  FUN DATA
@@ -159,20 +164,27 @@ else:
 
     @bot.message_handler(commands=["start"])
     def cmd_start(m):
+        log("HANDLER: /start chala, chat:", m.chat.id, m.chat.type)
         bot.reply_to(
             m,
             f"Hi {first_name(m.from_user)} 👋 Main hu <b>Ria</b> 💬\n"
             "Mujhse baat karne ke liye mera naam lo ya mere message par reply karo.\n\n"
             "Fun ke liye:\n/shayari — shayari\n/joke — joke\n/truth — truth sawal\n"
-            "/dare — dare challenge\n/help — saare commands",
+            "/dare — dare challenge\n"
+            "/ria apna message — jo likhoge, Ria ladki ki awaaz me bol degi 🎙️\n"
+            "/help — saare commands",
         )
+        log("HANDLER: /start ka reply bhej diya")
 
     @bot.message_handler(commands=["help"])
     def cmd_help(m):
+        log("HANDLER: /help chala, chat:", m.chat.id)
         bot.reply_to(
             m,
             "<b>Ria ke commands:</b>\n/shayari — shayari\n/joke — joke\n"
             "/truth — truth\n/dare — dare\n"
+            "/ria apna message — Ria use ladki ki awaaz me bol degi 🎙️\n"
+            "Example: /ria Namaste doston, group me sabka swagat hai\n"
             "Baat karne ke liye bas 'Ria' likho ya mere message par reply karo 😊",
         )
 
@@ -193,11 +205,55 @@ else:
         bot.reply_to(m, "😈 <b>Dare:</b> " + random.choice(DARE))
 
     # ========================================================
+    #  /ria - LADKI KI AWAAZ ME BOLNA (Text-to-Speech)
+    #  Example: /ria Namaste doston, group me swagat hai
+    #  gTTS (Google ki free awaaz) Hindi female voice deta hai.
+    # ========================================================
+
+    @bot.message_handler(commands=["ria"])
+    def cmd_ria_voice(m):
+        log("HANDLER: /ria voice chala, chat:", m.chat.id, m.chat.type)
+        # "/ria" ke aage wala text nikalo ("/ria@botname text" bhi chalega)
+        parts = (m.text or "").split(None, 1)
+        if len(parts) < 2 or not parts[1].strip():
+            bot.reply_to(
+                m,
+                "Aise likho:\n<code>/ria Namaste doston, group me sabka swagat hai</code>\n"
+                "Jo /ria ke aage likhoge, wahi main bol ke sunaungi 🎙️",
+            )
+            return
+        text = parts[1].strip()
+        if len(text) > 200:
+            text = text[:200]
+            bot.reply_to(m, "Message lamba tha, pehle 200 akshar hi bol rahi hu 🎙️")
+        try:
+            bot.send_chat_action(m.chat.id, "record_voice")
+        except Exception:
+            pass
+        try:
+            tts = gTTS(text=text, lang="hi", slow=False)
+            awaaz = io.BytesIO()
+            tts.write_to_fp(awaaz)
+            awaaz.seek(0)
+            awaaz.name = "ria_voice.mp3"
+            try:
+                bot.send_voice(m.chat.id, voice=awaaz, reply_to_message_id=m.message_id)
+            except Exception:
+                awaaz.seek(0)
+                bot.send_audio(m.chat.id, audio=awaaz, reply_to_message_id=m.message_id)
+            log("HANDLER: /ria voice bhej diya:", text[:40])
+        except Exception:
+            log("HANDLER ERROR: /ria voice fail hua, poora error neeche hai")
+            traceback.print_exc()
+            bot.reply_to(m, "Sorry, awaaz abhi nahi ban payi 😔 Ek baar phir try karo.")
+
+    # ========================================================
     #  WELCOME
     # ========================================================
 
     @bot.message_handler(content_types=["new_chat_members"])
     def welcome(m):
+        log("HANDLER: naya member aaya, chat:", m.chat.id)
         for user in m.new_chat_members:
             if BOT_USERNAME and user.username and user.username.lower() == BOT_USERNAME:
                 bot.send_message(
@@ -235,14 +291,15 @@ else:
 
     @bot.message_handler(func=lambda m: m.text and not m.text.startswith("/"))
     def chat_reply(m):
+        log("HANDLER: normal message aaya:", (m.text or "")[:40], "| chat:", m.chat.id, m.chat.type)
         if not should_reply(m):
+            log("HANDLER: is message ka reply nahi karna tha (naam/tag nahi tha)")
             return
         name = first_name(m.from_user)
         try:
             bot.send_chat_action(m.chat.id, "typing")
         except Exception:
             pass
-        time.sleep(random.uniform(0.5, 1.2))
         low = m.text.lower().strip()
         if low in ["hi", "hii", "hello", "hey", "hlo", "namaste"]:
             reply = random.choice(GREET_REPLIES).replace("{name}", name)
@@ -252,9 +309,10 @@ else:
                 clean = clean.replace(f"@{BOT_USERNAME}", "").strip()
             reply = smart_reply(name, clean or m.text)
         bot.reply_to(m, reply)
+        log("HANDLER: reply bhej diya")
 
     # ========================================================
-    #  WEBHOOK ROUTES (Render ke liye)
+    #  WEBHOOK ROUTES (v2 - mazboot)
     # ========================================================
 
     @app.route("/")
@@ -263,11 +321,28 @@ else:
 
     @app.route("/" + BOT_TOKEN, methods=["POST"])
     def webhook():
-        if request.headers.get("content-type") == "application/json":
-            update = telebot.types.Update.de_json(request.get_data().decode("utf-8"))
+        try:
+            data = request.get_json(force=True, silent=True)
+            if data is None:
+                raw = request.get_data(cache=False, as_text=True)
+                log("WEBHOOK: JSON nahi mila, raw lamba hai:", len(raw or ""))
+                import json as _json
+                data = _json.loads(raw)
+            update = telebot.types.Update.de_json(data)
+            msg = getattr(update, "message", None)
+            log(
+                "WEBHOOK: update aaya, id:", update.update_id,
+                "| text:", (getattr(msg, "text", None) or "")[:40] if msg else "(message nahi)",
+                "| chat:", msg.chat.id if msg and msg.chat else "?",
+            )
             bot.process_new_updates([update])
+            log("WEBHOOK: process ho gaya, 200 bhej rahe hain")
             return "", 200
-        return "Bad request", 403
+        except Exception:
+            log("WEBHOOK ERROR: kuch gadbad hui, poora error neeche hai")
+            traceback.print_exc()
+            # Telegram ko 200 hi do taaki wo atak na jaye, error Logs me dikh gaya hai
+            return "", 200
 
     def set_webhook():
         if RENDER_EXTERNAL_URL:
@@ -275,10 +350,10 @@ else:
             try:
                 bot.remove_webhook()
                 time.sleep(1)
-                bot.set_webhook(url=url)
-                print("Webhook set:", RENDER_EXTERNAL_URL)
+                ok = bot.set_webhook(url=url)
+                log("Webhook set hua:", ok, "| domain:", RENDER_EXTERNAL_URL)
             except Exception as e:
-                print("Webhook set fail:", e)
+                log("Webhook set fail:", e)
 
     set_webhook()
 
