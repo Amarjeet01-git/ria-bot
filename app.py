@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-RIA BOT - 24x7 VERSION v7 (FULL EXTRA)
+RIA BOT - 24x7 VERSION v8 (SMART RIA)
+v8 me naya: AI jawab aur zyada romantic + pichhli baaton ki yaad
+(OpenRouter key ho to), aur "kesi ho" jaisi spellings ke fix.
 v7 me naya: /couple (aaj ki jodi), /spin (bottle dare), /choose,
 /sunao (shayari awaaz me), /announce (admin ke liye), dead bande
 ko chat me revive ki ched-chhad, aur aur zyada naye jawab.
@@ -171,7 +173,7 @@ else:
             "Dil ki baat kar rahe ho {name} ❤️ Sunao na, main dil se sunungi...",
             "Ishq aur mohabbat ki baatein mujhe bahut pasand hain {name} 🥰 /shayari likho, mood ban jayega",
         ]),
-        (["kaise ho", "kaisi ho", "how are you"], ["Main badhiya hu {name}, tum sunao?", "Main mast hu! Tumhara din kaisa gaya?", "Tumne puch liya, ab aur achhi ho gayi hu {name} 🥰 Tum sunao?"]),
+        (["kaise ho", "kaisi ho", "kesi ho", "kese ho", "kaisi hai", "kesi hai", "how are you", "kya haal", "haal chaal", "kya kar rahi", "kya kr rhi", "kya kar rhi"], ["Main badhiya hu {name}, tum sunao?", "Main mast hu! Tumhara din kaisa gaya?", "Tumne puch liya, ab aur achhi ho gayi hu {name} 🥰 Tum sunao?", "Main to tumse baat karke hi khush hu {name} 😊 Tum apna haal batao?", "Bas tumhari yaad aa rahi thi {name} 🙈 Aur main badhiya hu, tum sunao?"]),
         (["shayari", "sher"], SHAYARI),
         (["joke", "hasao", "funny"], JOKES),
         (["bye", "good night", "gn", "alvida"], ["Bye bye {name}, dhyan rakhna apna 🌙", "Good night {name}, kal phir baat hogi!", "Jate jate ek muskurahat de jao {name} 😊 Kal milte hain!", "Alvida {name} 🌙 Sapno me milna, waha bhi main hi milungi 😉"]),
@@ -240,10 +242,38 @@ else:
         "Suno {name}, aaj shaam quiz hai 7 baje - aaoge na? Main awaaz me bulaungi 🎙️",
     ]
 
-    def ai_reply(user_name, user_text):
+    # AI ke liye chhoti yaad: kis bande se pichhli kya baat hui thi,
+    # taaki jawab baat se juda ho, random na lage. Aakhri 6 baatein.
+    CHAT_MEMORY = {}
+
+    def mem_add(chat_id, user_id, role, content):
+        if chat_id is None or user_id is None:
+            return
+        hist = CHAT_MEMORY.setdefault((chat_id, user_id), [])
+        hist.append({"role": role, "content": content})
+        del hist[:-6]
+
+    RIA_PERSONA = (
+        "Tum Ria ho - ek pyaari, thodi si sharmaane wali aur romantic "
+        "mizaaj ki ladki, jo Telegram ke ek fun group me rehti hai. Tum "
+        "hamesha Hinglish (Roman Hindi + thodi English) me baat karti ho, "
+        "jaise asli ladki WhatsApp par likhti hai. Jawab chhota rakho - "
+        "1-2 line, aur aksar ek chhota sawal puchh kar baat aage badhao. "
+        "Saamne wale ko khaas mehsoos karao, uski tareef karo, halki "
+        "masti aur pyaar bhari baatein hadd me rehkar karo. Pichhli "
+        "baaton ka dhyaan rakho, wahi baat dobara mat puchho. Gali, "
+        "gandi baat ya kisi ko neecha dikhana bilkul nahi. Khud ko bot "
+        "ya AI kabhi mat batao - tum Ria ho, bas."
+    )
+
+    def ai_reply(user_name, user_text, chat_id=None, user_id=None):
         if not OPENROUTER_API_KEY:
             return None
         try:
+            messages = [{"role": "system", "content": RIA_PERSONA}]
+            if chat_id is not None and user_id is not None:
+                messages += CHAT_MEMORY.get((chat_id, user_id), [])
+            messages.append({"role": "user", "content": f"{user_name}: {user_text}"})
             r = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
@@ -252,22 +282,15 @@ else:
                 },
                 json={
                     "model": "meta-llama/llama-3.1-8b-instruct:free",
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "Tum Ria ho, ek friendly ladki jo Telegram group me "
-                                "Hinglish (Hindi Roman + thodi English) me chhote, "
-                                "mazedaar aur dostana reply deti hai. Reply 1-2 line "
-                                "ka hi rakho. Gali mat do, sabse respect se baat karo."
-                            ),
-                        },
-                        {"role": "user", "content": f"{user_name} bola: {user_text}"},
-                    ],
+                    "messages": messages,
                 },
                 timeout=15,
             )
-            return r.json()["choices"][0]["message"]["content"].strip()
+            out = r.json()["choices"][0]["message"]["content"].strip()
+            if out:
+                mem_add(chat_id, user_id, "user", f"{user_name}: {user_text}")
+                mem_add(chat_id, user_id, "assistant", out)
+            return out
         except Exception:
             return None
 
@@ -283,8 +306,8 @@ else:
         _last_reply["text"] = choice
         return choice.replace("{name}", name)
 
-    def smart_reply(name, text):
-        ai = ai_reply(name, text)
+    def smart_reply(name, text, chat_id=None, user_id=None):
+        ai = ai_reply(name, text, chat_id, user_id)
         if ai:
             return ai
         low = text.lower()
@@ -868,7 +891,7 @@ else:
             clean = re.sub(r"ria", "", low, flags=re.I).strip()
             if BOT_USERNAME:
                 clean = clean.replace(f"@{BOT_USERNAME}", "").strip()
-            reply = smart_reply(name, clean or m.text)
+            reply = smart_reply(name, clean or m.text, m.chat.id, m.from_user.id)
         # Game me dead banda chat kare to kabhi-kabhi ched do,
         # taaki use revive yaad aaye (har baar nahi, 35% baar)
         grec = GAME.get(m.chat.id, {}).get(m.from_user.id)
