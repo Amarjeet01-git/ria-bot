@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-RIA BOT - 24x7 VERSION v2 (FIXED)
+RIA BOT - 24x7 VERSION v7 (FULL EXTRA)
+v7 me naya: /couple (aaj ki jodi), /spin (bottle dare), /choose,
+/sunao (shayari awaaz me), /announce (admin ke liye), dead bande
+ko chat me revive ki ched-chhad, aur aur zyada naye jawab.
+v6 se: ElevenLabs awaaz, "awaaz me bolo" par bol ke jawab,
+Balance Game (/kill /rob /revive /protect /baltop).
 =================================
 v2 me kya badla:
 - Bot ab threaded=False hai: message aate hi handler usi time chalega,
@@ -35,6 +40,8 @@ except Exception:
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "").strip() or "21m00Tcm4TlvDq8ikWAM"
 RENDER_EXTERNAL_URL = os.environ.get("RENDER_EXTERNAL_URL", "").strip()
 
 app = Flask(__name__)
@@ -193,6 +200,14 @@ else:
         (["paisa", "money", "ameer", "job", "naukri", "kaam"], ["Paisa sab kuch nahi hota {name}, par kaam bahut aata hai 😅 Mehnat karte raho!", "Job ki baat hai {name}? 💼 Mehnat karne walo ko ek din mukaam milta hi hai, haar mat mano", "Ameer banna hai {name}? Pehle kaam me mahir bano, paisa peeche aayega 💪", "Kaam kaisa chal raha hai {name}? Thak jao to yaha aa jana, mood fresh kar dungi 😊"]),
         (["akela", "lonely", "koi nahi"], ["Akela mehsoos ho raha hai {name}? 🥺 Main hu na — aur ye poora group hai tumhare saath", "Akelepan me hi log mujhse sabse zyada baat karte hain {name} 🤗 Bolo, dil ki baat sun rahi hu"]),
         (["hasna", "hasi", "maza aa", "funny"], ["Tum has rahe ho {name}? 😂 Bas, mera din ban gaya!", "Hasi sabse achhi dawa hai {name} 😄 Aur haste hue tum achhe lagte ho", "Aur hasau {name}? /joke likho, stock bhara pada hai mere paas 😜"]),
+        (["chai"], ["Chai ka time ☕ Mere saath hoti to aur maza aata {name} 😊", "Chai peene wale log dil ke saaf hote hain {name} ☕❤️", "Ek chai mere naam ki bhi pi lena {name} ☕ Main yahi samjhungi saath pi hai"]),
+        (["party"], ["Party?! 🎉 Kab aur kaha {name}? Bolo to main awaaz me announcement kar du?", "Party ka naam sunte hi mood ban gaya {name} 🎊 Sab ko group me bulao!", "Party me sabse pehle mujhe yaad karna {name} 😍 Main gaana... matlab shayari sunaungi"]),
+        (["dance", "nachna", "naach"], ["Nachne ka mood hai {name}? 💃 Main shayari bol du, tum dance karo!", "Dance me jo maza hai {name}, wo kahi nahi 😄 Ek video to banta hai group ke liye!"]),
+        (["selfie", "photo bhejo", "dp change"], ["Photo ki baat ho rahi hai {name}? 📸 Group me bhejo, sab dekhenge!", "Selfie me sabse best kon lagta hai group me {name}? Aaj faisla ho jaye 📷"]),
+        (["weekend", "chhutti", "sunday"], ["Weekend aa gaya {name} 🎉 Plan kya hai - quiz, game ya party?", "Chhutti ka din hai {name} 😌 Aaram bhi karo, group me masti bhi!"]),
+        (["hug", "gale lag", "jhappi"], ["Awww {name} 🤗 Ek virtual jhappi meri taraf se - dil se!", "Jhappi pao {name} 🤗 Ab smile karo, aise hi achhe lagte ho", "Dil udaas ho to meri jhappi hamesha ready hai {name} 🤗❤️"]),
+        (["best friend", "pakka dost", "jigri"], ["Jigri dost ki baat hi alag hai {name} ❤️ Group me kon hai tumhara jigri? Tag karo use!", "Pakke dost zindagi ki kamai hote hain {name} 🤗 Unhe kabhi khona mat"]),
+        (["neend nahi", "jaag raha", "raat bhar"], ["Raat ko jaagne wale ya to aashiq hote hain ya padhaku {name} 😜 Tum konsi wale ho?", "Itni raat ko jaag rahe ho {name} 🌙 Kiski yaadon me? Naam batao na 🙈"]),
     ]
 
     DEFAULT_REPLIES = [
@@ -216,6 +231,13 @@ else:
         "Tum jo bhi bolo {name}, sunne me maza aata hai 🥰 Continue karo",
         "Is baat par ek shayari banti hai {name} — /shayari likho, sunati hu ✍️",
         "Waise {name}, ek sawal — aaj khush ho na tum? Muskurahat dikh rahi hai baaton me 😊",
+        "Ek secret bolu {name}? Is group me meri sabse pasandida awaaz tumhari baaton ki hai 😌",
+        "Chai pi li {name}? ☕ Ab full energy se baat karo",
+        "Tum online aate ho to notification se pehle dil ko pata chal jata hai {name} 🙈",
+        "Aaj kuch naya karte hain {name} - /couple ya /spin try karo, maza aayega 🎲",
+        "Group ke sabse pyaare bande ko mera salaam {name} 😊 Ha, tumhi ko bola",
+        "Tumhari ek baat mujhe bahut pasand hai {name} - tum jawab dete ho, baaki logo ki tarah gayab nahi hote 🥰",
+        "Suno {name}, aaj shaam quiz hai 7 baje - aaoge na? Main awaaz me bulaungi 🎙️",
     ]
 
     def ai_reply(user_name, user_text):
@@ -274,6 +296,15 @@ else:
     def first_name(user):
         return (user.first_name or "Dost").strip()
 
+    # Group me kon-kon active hai (naam yaad rakhna) - /couple aur
+    # /spin jaise fun features ke kaam aata hai.
+    ACTIVE = {}
+
+    def track_user(chat_id, user):
+        if user is None or getattr(user, "is_bot", False):
+            return
+        ACTIVE.setdefault(chat_id, {})[user.id] = first_name(user)
+
     # ========================================================
     #  COMMANDS
     # ========================================================
@@ -288,7 +319,16 @@ else:
             "Fun ke liye:\n/shayari — shayari\n/joke — joke\n/truth — truth sawal\n"
             "/dare — dare challenge\n"
             "/ria apna message — jo likhoge, Ria ladki ki awaaz me bol degi 🎙️\n"
-            "/help — saare commands",
+            "/help — saare commands\n\n"
+            "🎮 <b>Balance Game:</b>\n"
+            "/balance — apna balance aur status\n"
+            "/daily — roz ka free bonus\n"
+            "/kill /rob — kisi ke message par reply karke\n"
+            "/revive — dead bande ko zinda karo\n"
+            "/protect — kill/chori se suraksha\n"
+            "/baltop — sabse ameer kon?\n\n"
+            "💑 <b>Fun:</b> /couple — aaj ki jodi\n/spin — bottle dare\n"
+            "/sunao — shayari meri awaaz me 🎙️",
         )
         log("HANDLER: /start ka reply bhej diya")
 
@@ -301,6 +341,21 @@ else:
             "/truth — truth\n/dare — dare\n"
             "/ria apna message — Ria use ladki ki awaaz me bol degi 🎙️\n"
             "Example: /ria Namaste doston, group me sabka swagat hai\n"
+            "Awaaz me jawab chahiye to bas likh do: 'Ria awaaz me bolo' 🎙️\n\n"
+            "🎮 <b>Balance Game:</b>\n"
+            "/balance — apna balance\n/daily — roz ka bonus\n"
+            "/kill — reply karke kill (loot milega)\n"
+            "/rob — reply karke chori\n"
+            "/revive — dead ko zinda karo (300 coins)\n"
+            "/give 200 — reply karke coins do\n"
+            "/protect — 12 ghante ki suraksha (200 coins)\n"
+            "/baltop — sabse ameer kon\n\n"
+            "💑 <b>Fun:</b>\n"
+            "/couple — aaj ki jodi banegi\n"
+            "/spin — bottle ghumegi, dare milega\n"
+            "/choose chai ya coffee — main chun dungi\n"
+            "/sunao — shayari meri awaaz me\n"
+            "/announce — sirf admin ke liye 📢\n\n"
             "Baat karne ke liye bas 'Ria' likho ya mere message par reply karo 😊",
         )
 
@@ -326,10 +381,48 @@ else:
     #  gTTS (Google ki free awaaz) Hindi female voice deta hai.
     # ========================================================
 
+    def elevenlabs_voice_bytes(text):
+        """ElevenLabs ki awaaz - free walo me sabse zyada asli ladki
+        jaisi. Key Render ke Environment me ho tabhi chalegi."""
+        if not ELEVENLABS_API_KEY:
+            return None
+        r = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}",
+            headers={
+                "xi-api-key": ELEVENLABS_API_KEY,
+                "Content-Type": "application/json",
+                "Accept": "audio/mpeg",
+            },
+            json={
+                "text": text,
+                "model_id": "eleven_multilingual_v2",
+                "voice_settings": {
+                    "stability": 0.4,
+                    "similarity_boost": 0.85,
+                    "style": 0.35,
+                    "use_speaker_boost": True,
+                },
+            },
+            timeout=30,
+        )
+        if r.status_code == 200 and len(r.content) > 1000:
+            log("VOICE: ElevenLabs awaaz bani (sabse real wali)")
+            return io.BytesIO(r.content)
+        log("VOICE: ElevenLabs fail, status:", r.status_code)
+        return None
+
     def make_voice_bytes(text):
-        """Asli ladki jaisi awaaz: pehle Microsoft ki neural awaaz
-        (Devanagari text ke liye Swara, Roman/Hinglish ke liye Neerja),
-        wo fail ho to Google wali gTTS awaaz."""
+        """Awaaz ki chain: 1) ElevenLabs (key ho to - sabse meethi,
+        asli ladki jaisi) 2) Microsoft neural awaaz (Devanagari ke
+        liye Swara, Roman/Hinglish ke liye Neerja) 3) gTTS (hamesha
+        chalti hai, thodi robot jaisi)."""
+        try:
+            buf = elevenlabs_voice_bytes(text)
+            if buf is not None:
+                return buf
+        except Exception:
+            log("VOICE: ElevenLabs error, neural awaaz try kar rahe hain")
+            traceback.print_exc()
         is_hindi = any("\u0900" <= ch <= "\u097f" for ch in text)
         if edge_tts is not None:
             voice = "hi-IN-SwaraNeural" if is_hindi else "en-IN-NeerjaNeural"
@@ -357,6 +450,21 @@ else:
         log("VOICE: gTTS awaaz bani")
         return buf
 
+    def send_voice_reply(m, text):
+        """Diye hue text ko awaaz bana ke voice note bhejta hai."""
+        try:
+            bot.send_chat_action(m.chat.id, "record_voice")
+        except Exception:
+            pass
+        awaaz = make_voice_bytes(text)
+        awaaz.seek(0)
+        awaaz.name = "ria_voice.mp3"
+        try:
+            bot.send_voice(m.chat.id, voice=awaaz, reply_to_message_id=m.message_id)
+        except Exception:
+            awaaz.seek(0)
+            bot.send_audio(m.chat.id, audio=awaaz, reply_to_message_id=m.message_id)
+
     @bot.message_handler(commands=["ria"])
     def cmd_ria_voice(m):
         log("HANDLER: /ria voice chala, chat:", m.chat.id, m.chat.type)
@@ -374,23 +482,321 @@ else:
             text = text[:200]
             bot.reply_to(m, "Message lamba tha, pehle 200 akshar hi bol rahi hu 🎙️")
         try:
-            bot.send_chat_action(m.chat.id, "record_voice")
-        except Exception:
-            pass
-        try:
-            awaaz = make_voice_bytes(text)
-            awaaz.seek(0)
-            awaaz.name = "ria_voice.mp3"
-            try:
-                bot.send_voice(m.chat.id, voice=awaaz, reply_to_message_id=m.message_id)
-            except Exception:
-                awaaz.seek(0)
-                bot.send_audio(m.chat.id, audio=awaaz, reply_to_message_id=m.message_id)
+            send_voice_reply(m, text)
             log("HANDLER: /ria voice bhej diya:", text[:40])
         except Exception:
             log("HANDLER ERROR: /ria voice fail hua, poora error neeche hai")
             traceback.print_exc()
             bot.reply_to(m, "Sorry, awaaz abhi nahi ban payi 😔 Ek baar phir try karo.")
+
+    @bot.message_handler(commands=["sunao"])
+    def cmd_sunao(m):
+        log("HANDLER: /sunao chala, chat:", m.chat.id)
+        parts = (m.text or "").split(None, 1)
+        if len(parts) < 2 or not parts[1].strip():
+            text = random.choice(SHAYARI)
+        else:
+            text = parts[1].strip()[:200]
+        try:
+            send_voice_reply(m, text)
+            log("HANDLER: /sunao voice bhej diya")
+        except Exception:
+            log("HANDLER ERROR: /sunao fail")
+            traceback.print_exc()
+            bot.reply_to(m, "Sorry, awaaz abhi nahi ban payi 😔 Ek baar phir try karo.")
+
+    # ========================================================
+    #  BALANCE GAME (v6 naya): kill, rob, revive, protect
+    #  Hisaab abhi yaad (memory) me rehta hai - Render ka server
+    #  restart ho jaye to balance reset ho sakta hai. Free
+    #  hosting ki yahi ek limit hai.
+    # ========================================================
+
+    GAME = {}
+    START_BAL = 1000
+    DAILY_BONUS = 200
+    REVIVE_COST = 300
+    PROTECT_COST = 200
+    PROTECT_SECONDS = 12 * 3600
+    ACTION_COOLDOWN = 600  # kill/rob ke beech 10 minute ki rok
+
+    def game_user(chat_id, user):
+        track_user(chat_id, user)
+        chat = GAME.setdefault(chat_id, {})
+        rec = chat.get(user.id)
+        if rec is None:
+            rec = {
+                "name": first_name(user), "bal": START_BAL, "alive": True,
+                "shield": 0, "last_kill": 0, "last_rob": 0, "last_daily": 0,
+            }
+            chat[user.id] = rec
+        else:
+            rec["name"] = first_name(user)
+        return rec
+
+    def shielded(rec):
+        return time.time() < rec.get("shield", 0)
+
+    def game_target(m):
+        if m.reply_to_message and m.reply_to_message.from_user:
+            return m.reply_to_message.from_user
+        return None
+
+    def bal_line(name, rec):
+        st = "Zinda ✅" if rec["alive"] else "Dead 💀 (revive chahiye)"
+        sh = ""
+        if shielded(rec):
+            ghante = int((rec["shield"] - time.time()) // 3600) + 1
+            sh = f"\n🛡️ Protection: ON (lagbhag {ghante} ghante baki)"
+        return f"👤 <b>{name}</b>\n💰 Balance: <b>{rec['bal']} coins</b>\n❤️ Status: {st}{sh}"
+
+    @bot.message_handler(commands=["balance", "profile"])
+    def cmd_balance(m):
+        rec = game_user(m.chat.id, m.from_user)
+        bot.reply_to(
+            m,
+            bal_line(first_name(m.from_user), rec)
+            + "\n\nCoins badhane ke liye: /daily roz ka bonus lo, ya kisi ke message par reply karke /kill ya /rob karo 😜",
+        )
+
+    @bot.message_handler(commands=["daily"])
+    def cmd_daily(m):
+        rec = game_user(m.chat.id, m.from_user)
+        bacha = 24 * 3600 - (time.time() - rec["last_daily"])
+        if bacha > 0:
+            bot.reply_to(m, f"Daily bonus aaj ka mil chuka hai {first_name(m.from_user)} 😊 Agla bonus lagbhag {int(bacha // 3600) + 1} ghante baad milega.")
+            return
+        rec["last_daily"] = time.time()
+        rec["bal"] += DAILY_BONUS
+        bot.reply_to(m, f"🎁 {first_name(m.from_user)} ko roz ka bonus mila: +{DAILY_BONUS} coins!\n💰 Naya balance: {rec['bal']} coins")
+
+    @bot.message_handler(commands=["kill"])
+    def cmd_kill(m):
+        actor = game_user(m.chat.id, m.from_user)
+        aname = first_name(m.from_user)
+        target_user = game_target(m)
+        if target_user is None:
+            bot.reply_to(m, "Kill kise karna hai? Uske kisi message par <b>reply</b> karke /kill likho 🔪")
+            return
+        if target_user.id == m.from_user.id:
+            bot.reply_to(m, "Khud ko hi kill karoge? 😂 Kisi aur ke message par reply karo.")
+            return
+        if getattr(target_user, "is_bot", False):
+            bot.reply_to(m, "Bot ko kill nahi kar sakte 😜 Koi banda chuno.")
+            return
+        if not actor["alive"]:
+            bot.reply_to(m, f"{aname}, tum khud dead ho 💀 Pehle /revive likho, {REVIVE_COST} coins me zinda ho jaoge.")
+            return
+        bacha = ACTION_COOLDOWN - (time.time() - actor["last_kill"])
+        if bacha > 0:
+            bot.reply_to(m, f"Thoda sabr {aname} 😅 Agla kill lagbhag {int(bacha // 60) + 1} minute baad milega.")
+            return
+        target = game_user(m.chat.id, target_user)
+        tname = first_name(target_user)
+        if not target["alive"]:
+            bot.reply_to(m, f"{tname} pehle se dead hai 💀 Mare hue ko kya marna.")
+            return
+        if shielded(target):
+            actor["last_kill"] = time.time()
+            bot.reply_to(m, f"🛡️ {tname} ne protection le rakha hai! {aname} ka kill fail ho gaya.")
+            return
+        loot = min(max(int(target["bal"] * 0.2), 50), 300)
+        loot = min(loot, target["bal"])
+        target["bal"] -= loot
+        actor["bal"] += loot
+        target["alive"] = False
+        actor["last_kill"] = time.time()
+        bot.reply_to(
+            m,
+            random.choice([
+                f"🔪 {aname} ne {tname} ko kill kar diya! 💀\nLoot ke +{loot} coins {aname} ko mile.\n{tname} ab dead hai - zinda hone ke liye /revive ({REVIVE_COST} coins) chahiye.",
+                f"💥 Bang! {aname} ne {tname} ko uda diya! 💀\n{tname} ke {loot} coins ab {aname} ke hue.\n{tname}, /revive likho aur wapas aao!",
+            ]),
+        )
+
+    @bot.message_handler(commands=["rob"])
+    def cmd_rob(m):
+        actor = game_user(m.chat.id, m.from_user)
+        aname = first_name(m.from_user)
+        target_user = game_target(m)
+        if target_user is None:
+            bot.reply_to(m, "Chori kiske yaha karni hai? Uske kisi message par <b>reply</b> karke /rob likho 🥷")
+            return
+        if target_user.id == m.from_user.id:
+            bot.reply_to(m, "Apne hi ghar me chori? 😂 Kisi aur ko chuno.")
+            return
+        if getattr(target_user, "is_bot", False):
+            bot.reply_to(m, "Bot ke paas coins nahi hote 😜 Banda chuno.")
+            return
+        if not actor["alive"]:
+            bot.reply_to(m, f"{aname}, tum dead ho 💀 Pehle /revive karo, phir chori karna.")
+            return
+        bacha = ACTION_COOLDOWN - (time.time() - actor["last_rob"])
+        if bacha > 0:
+            bot.reply_to(m, f"Police garam hai {aname} 😅 Agli chori lagbhag {int(bacha // 60) + 1} minute baad.")
+            return
+        target = game_user(m.chat.id, target_user)
+        tname = first_name(target_user)
+        if not target["alive"]:
+            bot.reply_to(m, f"{tname} dead hai 💀 Uske paas lootne ko kuch nahi bacha.")
+            return
+        if shielded(target):
+            bot.reply_to(m, f"🛡️ {tname} ka profile protected hai! {aname} ki chori fail.")
+            return
+        if target["bal"] <= 0:
+            bot.reply_to(m, f"{tname} ke paas 0 coins hain 😅 Kangaal ko kya lootoge.")
+            return
+        actor["last_rob"] = time.time()
+        if random.random() < 0.7:
+            loot = min(random.randint(50, 150), target["bal"])
+            target["bal"] -= loot
+            actor["bal"] += loot
+            bot.reply_to(m, f"🥷 {aname} ne {tname} ke {loot} coins chura liye! 💰\n{tname} ko pata bhi nahi chala... abhi abhi chala hoga 😜")
+        else:
+            fine = min(50, actor["bal"])
+            actor["bal"] -= fine
+            target["bal"] += fine
+            bot.reply_to(m, f"🚨 Pakde gaye! {aname} chori karte hue rangey haath pakda gaya!\nJurmana: {fine} coins {tname} ko mil gaye 😂")
+
+    @bot.message_handler(commands=["revive"])
+    def cmd_revive(m):
+        actor = game_user(m.chat.id, m.from_user)
+        aname = first_name(m.from_user)
+        target_user = game_target(m)
+        if target_user is not None and target_user.id != m.from_user.id and not getattr(target_user, "is_bot", False):
+            target = game_user(m.chat.id, target_user)
+            tname = first_name(target_user)
+            if target["alive"]:
+                bot.reply_to(m, f"{tname} to zinda hai 😄 Revive ki zarurat nahi.")
+                return
+            if actor["bal"] < REVIVE_COST:
+                bot.reply_to(m, f"Revive ke liye {REVIVE_COST} coins chahiye, {aname} ke paas sirf {actor['bal']} hain. /daily se kamao pehle.")
+                return
+            actor["bal"] -= REVIVE_COST
+            target["alive"] = True
+            bot.reply_to(m, f"💖 {aname} ne {REVIVE_COST} coins kharch karke {tname} ko zinda kar diya! ✨\nDosti ho to aisi!")
+            return
+        if actor["alive"]:
+            bot.reply_to(m, f"{aname}, tum to zinda ho 😄 Kisi dead dost ke message par reply karke /revive likho to use zinda kar sakte ho.")
+            return
+        if actor["bal"] < REVIVE_COST:
+            bot.reply_to(m, f"Khud zinda hone ke liye {REVIVE_COST} coins chahiye, tumhare paas {actor['bal']} hain 💀 /daily bonus lo ya kisi dost ko bolo tumhe revive kare.")
+            return
+        actor["bal"] -= REVIVE_COST
+        actor["alive"] = True
+        bot.reply_to(m, f"✨ {aname} {REVIVE_COST} coins dekar phir se zinda ho gaya! 💰 Baki balance: {actor['bal']} coins")
+
+    @bot.message_handler(commands=["give"])
+    def cmd_give(m):
+        actor = game_user(m.chat.id, m.from_user)
+        aname = first_name(m.from_user)
+        target_user = game_target(m)
+        amount = None
+        for part in (m.text or "").split()[1:]:
+            if part.isdigit():
+                amount = int(part)
+                break
+        if target_user is None or amount is None:
+            bot.reply_to(m, "Aise likho: kisi ke message par <b>reply</b> karke <code>/give 200</code> - utne coins use mil jayenge 💸")
+            return
+        if target_user.id == m.from_user.id:
+            bot.reply_to(m, "Khud ko hi coins doge? 😂 Wo to pehle se tumhare hi hain.")
+            return
+        if getattr(target_user, "is_bot", False):
+            bot.reply_to(m, "Bot ko coins nahi chahiye 😜")
+            return
+        if amount <= 0 or actor["bal"] < amount:
+            bot.reply_to(m, f"{aname}, tumhare paas {actor['bal']} coins hain - {amount} nahi de sakte. Kam amount try karo.")
+            return
+        target = game_user(m.chat.id, target_user)
+        actor["bal"] -= amount
+        target["bal"] += amount
+        bot.reply_to(m, f"💸 {aname} ne {first_name(target_user)} ko {amount} coins diye! Dil bada hai tumhara {aname} ❤️")
+
+    @bot.message_handler(commands=["protect"])
+    def cmd_protect(m):
+        rec = game_user(m.chat.id, m.from_user)
+        name = first_name(m.from_user)
+        if shielded(rec):
+            ghante = int((rec["shield"] - time.time()) // 3600) + 1
+            bot.reply_to(m, f"🛡️ {name}, tumhari protection pehle se ON hai (lagbhag {ghante} ghante baki). Chori aur kill se safe ho.")
+            return
+        if rec["bal"] < PROTECT_COST:
+            bot.reply_to(m, f"Protection ke liye {PROTECT_COST} coins chahiye, {name} ke paas {rec['bal']} hain. /daily se kamao.")
+            return
+        rec["bal"] -= PROTECT_COST
+        rec["shield"] = time.time() + PROTECT_SECONDS
+        bot.reply_to(m, f"🛡️ {name} ne {PROTECT_COST} coins me protection le liya!\nAgle 12 ghante na koi kill kar payega, na chori. Safe ho tum.")
+
+    @bot.message_handler(commands=["baltop"])
+    def cmd_baltop(m):
+        chat = GAME.get(m.chat.id, {})
+        if not chat:
+            bot.reply_to(m, "Abhi kisi ka khata nahi khula hai 😊 /balance likho, khata khul jayega (1000 coins free milte hain).")
+            return
+        top = sorted(chat.values(), key=lambda r: r["bal"], reverse=True)[:10]
+        lines = ["🏆 <b>Balance Top List</b> 🏆"]
+        for i, r in enumerate(top, 1):
+            mark = " 👑" if i == 1 else (" 💀" if not r["alive"] else "")
+            lines.append(f"{i}. {r['name']} - {r['bal']} coins{mark}")
+        bot.reply_to(m, "\n".join(lines))
+
+    # ========================================================
+    #  FUN FEATURES (v7 naye): couple, spin, choose, announce
+    # ========================================================
+
+    @bot.message_handler(commands=["couple"])
+    def cmd_couple(m):
+        track_user(m.chat.id, m.from_user)
+        users = ACTIVE.get(m.chat.id, {})
+        if len(users) < 2:
+            bot.reply_to(m, "Couple banane ke liye pehle thode bande group me chat kar lein 😊 Phir /couple likho, main jodi bana dungi 💑")
+            return
+        (id1, n1), (id2, n2) = random.sample(list(users.items()), 2)
+        pct = random.randint(65, 99)
+        bot.reply_to(m, random.choice([
+            f"💑 <b>Aaj ki jodi:</b> {n1} ❤️ {n2}\nMatch: {pct}% - rab ne bana di jodi! 😍",
+            f"💘 Ria ki nazar me aaj ke couple: <b>{n1} + {n2}</b> ({pct}% match)\nGroup walo, taaliyan! 👏",
+            f"💞 <b>{n1}</b> aur <b>{n2}</b> - {pct}% match!\nYe jodi group me aag laga degi 🔥",
+        ]))
+
+    @bot.message_handler(commands=["spin"])
+    def cmd_spin(m):
+        track_user(m.chat.id, m.from_user)
+        users = ACTIVE.get(m.chat.id, {})
+        if not users:
+            bot.reply_to(m, "Bottle ghumane ke liye pehle group me thodi chat honi chahiye 😊")
+            return
+        uid, uname = random.choice(list(users.items()))
+        bot.reply_to(m, f"🍾 Bottle ghumi aur ruki... <b>{uname}</b> par!\nTumhara dare hai: {random.choice(DARE)}")
+
+    @bot.message_handler(commands=["choose"])
+    def cmd_choose(m):
+        parts = (m.text or "").split(None, 1)
+        if len(parts) < 2 or not parts[1].strip():
+            bot.reply_to(m, "Aise likho: <code>/choose chai ya coffee</code> - main ek chun dungi 😊")
+            return
+        opts = [o.strip() for o in re.split(r"\s+ya\s+|,", parts[1]) if o.strip()]
+        if len(opts) < 2:
+            bot.reply_to(m, "Do options do 'ya' laga ke: <code>/choose momos ya chowmein</code> 😋")
+            return
+        bot.reply_to(m, f"Soch liya... meri pasand hai: <b>{random.choice(opts)}</b> 😌 Pakka wala faisla!")
+
+    @bot.message_handler(commands=["announce"])
+    def cmd_announce(m):
+        if m.chat.type != "private":
+            try:
+                st = bot.get_chat_member(m.chat.id, m.from_user.id).status
+                if st not in ("administrator", "creator"):
+                    bot.reply_to(m, "Announcement sirf group ke admin kar sakte hain 😊")
+                    return
+            except Exception:
+                pass
+        parts = (m.text or "").split(None, 1)
+        if len(parts) < 2 or not parts[1].strip():
+            bot.reply_to(m, "Aise likho: <code>/announce Kal shaam 7 baje quiz hai</code> 📢")
+            return
+        bot.send_message(m.chat.id, f"📢 <b>Announcement</b>\n\n{parts[1].strip()}\n\n— {first_name(m.from_user)}")
 
     # ========================================================
     #  WELCOME
@@ -446,6 +852,7 @@ else:
     @bot.message_handler(func=lambda m: m.text and not m.text.startswith("/"))
     def chat_reply(m):
         log("HANDLER: normal message aaya:", (m.text or "")[:40], "| chat:", m.chat.id, m.chat.type)
+        track_user(m.chat.id, m.from_user)
         if not should_reply(m):
             log("HANDLER: is message ka reply nahi karna tha (naam/tag nahi tha)")
             return
@@ -462,6 +869,41 @@ else:
             if BOT_USERNAME:
                 clean = clean.replace(f"@{BOT_USERNAME}", "").strip()
             reply = smart_reply(name, clean or m.text)
+        # Game me dead banda chat kare to kabhi-kabhi ched do,
+        # taaki use revive yaad aaye (har baar nahi, 35% baar)
+        grec = GAME.get(m.chat.id, {}).get(m.from_user.id)
+        if grec and not grec["alive"] and random.random() < 0.35:
+            reply = random.choice([
+                f"{name}, tum to game me dead ho 💀 Baatein khoob kar rahe ho! /revive likho, zinda kar dungi 😜",
+                f"Arre {name}, bhoot banke chat kar rahe ho? 👻 Pehle /revive karo!",
+                f"{name} dead hai, phir bhi group me hai - yahi to pyaar hai 😂 Ab /revive kar bhi lo",
+            ])
+        # Awaaz me jawab maanga hai kya? Jaise "Ria awaaz me bolo"
+        wants_voice = any(p in low for p in [
+            "awaaz me bolo", "awaz me bolo", "awaaz me sunao", "awaz me sunao",
+            "bol ke sunao", "bolkar sunao", "voice me bolo", "voice note",
+            "apni awaaz me", "awaaz sunao", "bol ke batao", "bolkar batao",
+        ])
+        if wants_voice:
+            try:
+                bot.send_chat_action(m.chat.id, "record_voice")
+            except Exception:
+                pass
+            try:
+                awaaz = make_voice_bytes(reply[:180])
+                awaaz.seek(0)
+                awaaz.name = "ria_voice.mp3"
+                try:
+                    bot.send_voice(m.chat.id, voice=awaaz, reply_to_message_id=m.message_id)
+                except Exception:
+                    awaaz.seek(0)
+                    bot.send_audio(m.chat.id, audio=awaaz, reply_to_message_id=m.message_id)
+                LAST_CHAT[(m.chat.id, m.from_user.id)] = time.time()
+                log("HANDLER: voice reply bhej diya")
+                return
+            except Exception:
+                log("HANDLER: voice reply fail, text bhej rahe hain")
+                traceback.print_exc()
         bot.reply_to(m, reply)
         # Baat chal rahi hai, yaad me dal do — taaki agla message
         # bina naam liye bhi Ria samajh jaye ki usi ke liye hai
